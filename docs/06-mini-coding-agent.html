@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 6: A mini coding agent · The Agent Loop</title>
+<meta name="description" content="A mini coding agent. Part of The Agent Loop: build a mini coding agent in TypeScript, no framework.">
+<meta property="og:title" content="Lesson 6: A mini coding agent · The Agent Loop">
+<meta property="og:description" content="A mini coding agent. Part of The Agent Loop: build a mini coding agent in TypeScript, no framework.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:creator" content="@georgehanu">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>↻</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><span class="loop">↻</span> The Agent Loop</a>
+  <nav class="top-links">
+    <a href="https://github.com/georgehanu/the-agent-loop">GitHub</a>
+    <a class="follow" href="https://x.com/georgehanu">Follow @georgehanu</a>
+  </nav>
+</header>
+<div class="layout">
+  <aside class="side"><div class="side-title">Lessons</div><a href="01-text-in-text-out.html"><span>1</span>Text in, text out</a>
+<a href="02-first-tool-call.html"><span>2</span>Your first real tool call</a>
+<a href="03-the-loop.html"><span>3</span>Keep going until it's done</a>
+<a href="04-todo-list.html"><span>4</span>Give it a to-do list</a>
+<a href="05-guardrails.html"><span>5</span>Guardrails: the boring code that matters</a>
+<a href="06-mini-coding-agent.html" aria-current="page"><span>6</span>A mini coding agent</a>
+<a href="07-do-you-need-an-agent.html"><span>+</span>Do you even need an agent?</a></aside>
+  <main class="lesson"><div class="meta"><span>Run</span><code>npm run agent</code><a href="https://github.com/georgehanu/the-agent-loop/blob/main/src/lessons/06-mini-coding-agent.ts">View the code →</a></div><h1>Lesson 6 · A mini coding agent</h1>
+<p>Everything together: the loop from lesson 3, the to-do list from lesson 4, the guardrails from lesson 5, and five tools.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>What it does</th>
+<th>Approval</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>list_files</code></td>
+<td>Lists the project&#39;s files</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>read_file</code></td>
+<td>Reads one file</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>edit_file</code></td>
+<td>Replaces one exact piece of text</td>
+<td><strong>yes</strong></td>
+</tr>
+<tr>
+<td><code>run_tests</code></td>
+<td>Runs the test suite, fixed command</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>update_todos</code></td>
+<td>Writes the plan</td>
+<td>no</td>
+</tr>
+</tbody></table>
+<p>The task: <em>&quot;The tests are failing. Find out why and fix it.&quot;</em></p>
+<pre><code class="hljs language-bash">npm run agent
+</code></pre><h2>What a good run looks like</h2>
+<pre><code class="hljs language-text">── turn 1 ──  plan
+   ◐ Run the tests and find the failure
+   ○ Read the code under test
+   ○ Fix the bug
+   ○ Run the tests again
+
+── turn 2 ──  run_tests → 5 pass, 1 fail: &quot;shipping is free at exactly 50.00&quot;
+── turn 3 ──  read src/cart.js and README.md
+── turn 4 ──  &quot;the test is right and the code is wrong&quot;  →  edit_file  [y/N]
+       - return subtotal(items) &gt; FREE_SHIPPING_FROM ? 0 : SHIPPING_COST;
+       + return subtotal(items) &gt;= FREE_SHIPPING_FROM ? 0 : SHIPPING_COST;
+── turn 5 ──  run_tests → 6 pass
+── turn 7 ──  summary: what was wrong, what changed, test result
+</code></pre><p>The bug from lesson 1, fixed with one character, and checked.</p>
+<h2>Three design choices worth stealing</h2>
+<h3><code>edit_file</code>, not <code>write_file</code></h3>
+<p>The model sends the exact text to replace and the new text. The tool refuses if the old text isn&#39;t found, or is found more than once:</p>
+<pre><code class="hljs language-ts"><span class="hljs-keyword">if</span> (count === <span class="hljs-number">0</span>) <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ToolError</span>(<span class="hljs-string">`old_text was not found in <span class="hljs-subst">${path}</span>. Read the file and copy it exactly.`</span>);
+<span class="hljs-keyword">if</span> (count &gt; <span class="hljs-number">1</span>) <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ToolError</span>(<span class="hljs-string">`old_text appears <span class="hljs-subst">${count}</span> times in <span class="hljs-subst">${path}</span>. Include more context.`</span>);
+</code></pre><p>Why not let it rewrite the whole file? A whole-file rewrite can quietly drop a function the model forgot about. An exact-match edit can only change what the model has actually seen. It also gives you a tiny, readable diff to approve. Most coding agents edit this way for the same reasons.</p>
+<h3>The system prompt describes a way of working, not a personality</h3>
+<pre><code class="hljs language-text">- Look before you change anything: run the tests, read the relevant files.
+- Make the smallest change that fixes the problem. Prefer fixing the code over changing a test,
+  unless the test is clearly wrong. Never delete a test to make the suite pass.
+- After an edit, run the tests again.
+- Finish with a short summary: what was wrong, what you changed, and the test result.
+</code></pre><p>No &quot;You are a world-class senior engineer&quot;. Just the habits you&#39;d want from a colleague. &quot;Never delete a test to make the suite pass&quot; is there because a test suite going green is also what you&#39;d see if a test got deleted.</p>
+<h3>Tests are the agent&#39;s eyes</h3>
+<p>Without <code>run_tests</code>, the model can only <em>believe</em> the fix works. With it, the model checks, and so do you: the last tool result is real test output, not the model&#39;s opinion. If you build agents for your own work, find the equivalent: a type checker, a linter, a dry run, a preview build. <strong>An agent is only as good as what it can check.</strong></p>
+<h2>Use it on your own project</h2>
+<p>With an API key, the agent is a real (small) tool:</p>
+<pre><code class="hljs language-bash">npm run agent -- <span class="hljs-string">&quot;Add a test for orderTotal with two items&quot;</span>
+npm run agent -- --<span class="hljs-built_in">dir</span> ../some-node-project <span class="hljs-string">&quot;Why does the date test fail?&quot;</span>
+</code></pre><p><code>--dir</code> points it at another Node project. It works <strong>in place</strong>, so use a copy or a clean git branch. The guardrails still apply: paths stay inside that folder, and edits need your yes.</p>
+<h2>How small is it?</h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>What</th>
+<th>Lines</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>src/agent.ts</code></td>
+<td>the loop + guardrails</td>
+<td>109</td>
+</tr>
+<tr>
+<td><code>src/tools/project.ts</code></td>
+<td>four project tools</td>
+<td>125</td>
+</tr>
+<tr>
+<td><code>src/tools/todos.ts</code></td>
+<td>to-do list</td>
+<td>61</td>
+</tr>
+<tr>
+<td><code>src/lessons/06-mini-coding-agent.ts</code></td>
+<td>prompt, wiring, replay script</td>
+<td>122</td>
+</tr>
+</tbody></table>
+<p>Without comments, the loop and all five tools come to about 250 lines. The products you use add a lot on top: streaming, context compaction for long sessions, sub-agents, permission modes, many more tools. But the core still has this shape: <strong>a model, some tools, and a loop.</strong></p>
+<h2>Try this</h2>
+<ul>
+<li>Break a second thing in the playground (say, <code>formatPrice</code> rounding) and run the agent. Does the plan change?</li>
+<li>Add a <code>search</code> tool (find a string across files). Watch how the model uses it instead of reading everything.</li>
+<li>Delete the &quot;Never delete a test&quot; line. Give it a test that&#39;s genuinely wrong. Then put the line back.</li>
+</ul>
+<aside class="cta"><strong>Found this useful?</strong> I post small, practical AI coding examples most days.
+  <a href="https://x.com/georgehanu">Follow @georgehanu on X</a></aside><nav class="pager"><a href="05-guardrails.html"><small>← Lesson 5</small>Guardrails: the boring code that matters</a><a class="next" href="07-do-you-need-an-agent.html"><small>Epilogue →</small>Do you even need an agent?</a></nav></main>
+</div>
+<footer class="foot">
+  <p>Written by <a href="https://x.com/georgehanu">George Hanu</a>. I teach developers to build software with AI: small examples, explained clearly.</p>
+  <p><a href="https://x.com/georgehanu">Follow on X</a> · <a href="https://github.com/georgehanu/the-agent-loop">Source on GitHub</a> · MIT licensed</p>
+</footer>
+</body>
+</html>

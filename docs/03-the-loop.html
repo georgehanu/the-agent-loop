@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 3: Keep going until it's done · The Agent Loop</title>
+<meta name="description" content="Keep going until it's done. Part of The Agent Loop: build a mini coding agent in TypeScript, no framework.">
+<meta property="og:title" content="Lesson 3: Keep going until it's done · The Agent Loop">
+<meta property="og:description" content="Keep going until it's done. Part of The Agent Loop: build a mini coding agent in TypeScript, no framework.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:creator" content="@georgehanu">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>↻</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><span class="loop">↻</span> The Agent Loop</a>
+  <nav class="top-links">
+    <a href="https://github.com/georgehanu/the-agent-loop">GitHub</a>
+    <a class="follow" href="https://x.com/georgehanu">Follow @georgehanu</a>
+  </nav>
+</header>
+<div class="layout">
+  <aside class="side"><div class="side-title">Lessons</div><a href="01-text-in-text-out.html"><span>1</span>Text in, text out</a>
+<a href="02-first-tool-call.html"><span>2</span>Your first real tool call</a>
+<a href="03-the-loop.html" aria-current="page"><span>3</span>Keep going until it's done</a>
+<a href="04-todo-list.html"><span>4</span>Give it a to-do list</a>
+<a href="05-guardrails.html"><span>5</span>Guardrails: the boring code that matters</a>
+<a href="06-mini-coding-agent.html"><span>6</span>A mini coding agent</a>
+<a href="07-do-you-need-an-agent.html"><span>+</span>Do you even need an agent?</a></aside>
+  <main class="lesson"><div class="meta"><span>Run</span><code>npm run lesson3</code><a href="https://github.com/georgehanu/the-agent-loop/blob/main/src/lessons/03-the-loop.ts">View the code →</a></div><h1>Lesson 3 · Keep going until it&#39;s done</h1>
+<p>Lesson 2 gave the model one round of tools. Some questions need one. Some need five. You can&#39;t know which in advance, but the model can tell when it has seen enough. So we let it decide.</p>
+<h2>The shape of an agent</h2>
+<pre><code class="hljs language-text">ask the model ──► wants tools? ──no──► that&#x27;s the answer
+      ▲               │ yes
+      │               ▼
+      └──── run them, send the results back
+</code></pre><p>In code:</p>
+<pre><code class="hljs language-ts"><span class="hljs-keyword">let</span> reply = <span class="hljs-keyword">await</span> model.<span class="hljs-title function_">ask</span>({ messages, tools });
+
+<span class="hljs-keyword">while</span> (reply.<span class="hljs-property">stop_reason</span> === <span class="hljs-string">&quot;tool_use&quot;</span>) {
+  messages.<span class="hljs-title function_">push</span>({ <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;assistant&quot;</span>, <span class="hljs-attr">content</span>: reply.<span class="hljs-property">content</span> });
+  messages.<span class="hljs-title function_">push</span>({ <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;user&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-title function_">runAll</span>(<span class="hljs-title function_">toolCallsOf</span>(reply)) }); <span class="hljs-comment">// every call, one message (lesson 2)</span>
+  reply = <span class="hljs-keyword">await</span> model.<span class="hljs-title function_">ask</span>({ messages, tools });
+}
+
+<span class="hljs-comment">// the model replied without asking for a tool: that&#x27;s the answer</span>
+</code></pre><p>Each pass is a <strong>turn</strong>: the model asks, we run, we report back, it looks again. Nothing in this code knows what the task is or how many steps it takes. <strong>The model decides when the job is done.</strong></p>
+<p>That&#39;s the difference from a normal program. You don&#39;t write &quot;read the tests, then the code, then answer&quot;. You hand over the tools and the question, and the path through the task comes from the model.</p>
+<h2>Run it</h2>
+<pre><code class="hljs language-bash">npm run lesson3
+</code></pre><pre><code class="hljs language-text">── turn 1 ──────────────────────────
+model  Let me see what&#x27;s in the project first.
+tool → list_files({})
+
+── turn 2 ──────────────────────────
+model  I&#x27;ll read the cart module and its tests side by side.
+tool → read_file({&quot;path&quot;:&quot;src/cart.js&quot;})
+tool → read_file({&quot;path&quot;:&quot;test/cart.test.js&quot;})
+
+── turn 3 ──────────────────────────
+model  The test &quot;shipping is free at exactly 50.00&quot; fails. …
+</code></pre><p>Three turns. Nobody told it to list the files first. It chose to, because it didn&#39;t know the test file&#39;s name. That&#39;s the &quot;agent&quot; part: the path through the task comes from the model, not from your code.</p>
+<h2>The messages array is the memory</h2>
+<p>After the run, <code>messages</code> holds everything: the question, each model turn, each batch of tool results. The model has no memory between requests. <strong>You send the entire conversation every time.</strong> That&#39;s why the model in turn 3 &quot;remembers&quot; the file it read in turn 2: it&#39;s right there in the request.</p>
+<p>Two practical consequences:</p>
+<ul>
+<li><strong>Cost grows with every turn.</strong> Turn 10 pays for turns 1 to 9 again as input. (Prompt caching softens this a lot. It&#39;s worth turning on once you go beyond experiments.)</li>
+<li><strong>What&#39;s in the array is all the model knows.</strong> If a tool returns 5,000 lines of logs, those lines now ride along in every later turn. Keep tool output short. Lesson 5&#39;s tools clip it.</li>
+</ul>
+<h2>A definition you can use</h2>
+<p>Simon Willison puts it well: an agent is a model that runs tools in a loop to achieve a goal. You&#39;ve now written every piece of that sentence:</p>
+<ul>
+<li><strong>model</strong>: <code>model.ask(...)</code></li>
+<li><strong>tools</strong>: the schemas, plus <code>runTool()</code></li>
+<li><strong>in a loop</strong>: <code>while (reply.stop_reason === &quot;tool_use&quot;)</code></li>
+<li><strong>goal</strong>: the user&#39;s question, and the model deciding when it&#39;s met</li>
+</ul>
+<p>Frameworks give you this loop with extras: retries, streaming, tracing. Worth using once you know what they&#39;re doing. Now you do.</p>
+<h2>Try this</h2>
+<ul>
+<li>Add a <code>console.log(JSON.stringify(messages, null, 2))</code> after the loop. Read the whole conversation once. It&#39;s the best 2 minutes you&#39;ll spend on agents.</li>
+<li>What happens if the model keeps asking for tools forever? Nothing stops it yet. Keep that thought for lesson 5.</li>
+</ul>
+<aside class="cta"><strong>Found this useful?</strong> I post small, practical AI coding examples most days.
+  <a href="https://x.com/georgehanu">Follow @georgehanu on X</a></aside><nav class="pager"><a href="02-first-tool-call.html"><small>← Lesson 2</small>Your first real tool call</a><a class="next" href="04-todo-list.html"><small>Lesson 4 →</small>Give it a to-do list</a></nav></main>
+</div>
+<footer class="foot">
+  <p>Written by <a href="https://x.com/georgehanu">George Hanu</a>. I teach developers to build software with AI: small examples, explained clearly.</p>
+  <p><a href="https://x.com/georgehanu">Follow on X</a> · <a href="https://github.com/georgehanu/the-agent-loop">Source on GitHub</a> · MIT licensed</p>
+</footer>
+</body>
+</html>

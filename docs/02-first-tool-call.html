@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 2: Your first real tool call · The Agent Loop</title>
+<meta name="description" content="Your first real tool call. Part of The Agent Loop: build a mini coding agent in TypeScript, no framework.">
+<meta property="og:title" content="Lesson 2: Your first real tool call · The Agent Loop">
+<meta property="og:description" content="Your first real tool call. Part of The Agent Loop: build a mini coding agent in TypeScript, no framework.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:creator" content="@georgehanu">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>↻</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><span class="loop">↻</span> The Agent Loop</a>
+  <nav class="top-links">
+    <a href="https://github.com/georgehanu/the-agent-loop">GitHub</a>
+    <a class="follow" href="https://x.com/georgehanu">Follow @georgehanu</a>
+  </nav>
+</header>
+<div class="layout">
+  <aside class="side"><div class="side-title">Lessons</div><a href="01-text-in-text-out.html"><span>1</span>Text in, text out</a>
+<a href="02-first-tool-call.html" aria-current="page"><span>2</span>Your first real tool call</a>
+<a href="03-the-loop.html"><span>3</span>Keep going until it's done</a>
+<a href="04-todo-list.html"><span>4</span>Give it a to-do list</a>
+<a href="05-guardrails.html"><span>5</span>Guardrails: the boring code that matters</a>
+<a href="06-mini-coding-agent.html"><span>6</span>A mini coding agent</a>
+<a href="07-do-you-need-an-agent.html"><span>+</span>Do you even need an agent?</a></aside>
+  <main class="lesson"><div class="meta"><span>Run</span><code>npm run lesson2</code><a href="https://github.com/georgehanu/the-agent-loop/blob/main/src/lessons/02-first-tool-call.ts">View the code →</a></div><h1>Lesson 2 · Your first real tool call</h1>
+<p>Same idea as lesson 1, minus the guesswork. Instead of &quot;reply with <code>READ &lt;path&gt;</code>&quot;, we describe the tool with a JSON schema and let the API do the formatting.</p>
+<h2>A tool has two halves</h2>
+<p><strong>What the model sees</strong>: a name, a description and an input schema.</p>
+<pre><code class="hljs language-ts"><span class="hljs-keyword">const</span> <span class="hljs-attr">readFileTool</span>: <span class="hljs-title class_">Tool</span> = {
+  <span class="hljs-attr">name</span>: <span class="hljs-string">&quot;read_file&quot;</span>,
+  <span class="hljs-attr">description</span>: <span class="hljs-string">&quot;Read a text file from the project. Paths are relative to the project root, e.g. src/cart.js.&quot;</span>,
+  <span class="hljs-attr">strict</span>: <span class="hljs-literal">true</span>,
+  <span class="hljs-attr">input_schema</span>: {
+    <span class="hljs-attr">type</span>: <span class="hljs-string">&quot;object&quot;</span>,
+    <span class="hljs-attr">properties</span>: { <span class="hljs-attr">path</span>: { <span class="hljs-attr">type</span>: <span class="hljs-string">&quot;string&quot;</span>, <span class="hljs-attr">description</span>: <span class="hljs-string">&quot;Relative path of the file to read.&quot;</span> } },
+    <span class="hljs-attr">required</span>: [<span class="hljs-string">&quot;path&quot;</span>],
+    <span class="hljs-attr">additionalProperties</span>: <span class="hljs-literal">false</span>,
+  },
+};
+</code></pre><p><strong>What our code does</strong>: a normal function.</p>
+<pre><code class="hljs language-ts"><span class="hljs-keyword">function</span> <span class="hljs-title function_">readFile</span>(<span class="hljs-params"><span class="hljs-attr">path</span>: <span class="hljs-built_in">string</span></span>) {
+  <span class="hljs-keyword">return</span> <span class="hljs-title function_">readFileSync</span>(<span class="hljs-string">`playground/<span class="hljs-subst">${path}</span>`</span>, <span class="hljs-string">&quot;utf8&quot;</span>);
+}
+</code></pre><p>The model never sees the function, only the description. So the description <em>is</em> a prompt. &quot;Paths are relative to the project root, e.g. src/cart.js&quot; saves you a round of the model guessing <code>/src/cart.js</code> or <code>./cart.js</code>.</p>
+<p><code>strict: true</code> asks the API to guarantee that the input matches the schema. One less thing to check.</p>
+<h2>What comes back</h2>
+<p>When the model wants the tool, the reply looks like this (trimmed):</p>
+<pre><code class="hljs language-json"><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;stop_reason&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;tool_use&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;content&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span>
+    <span class="hljs-punctuation">{</span> <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;tool_use&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;toolu_01…&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;read_file&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;input&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span> <span class="hljs-attr">&quot;path&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;src/money.js&quot;</span> <span class="hljs-punctuation">}</span> <span class="hljs-punctuation">}</span>
+  <span class="hljs-punctuation">]</span>
+<span class="hljs-punctuation">}</span>
+</code></pre><p>No regex needed. <code>stop_reason: &quot;tool_use&quot;</code> means &quot;I&#39;ve stopped because I want a tool&quot;. The <code>tool_use</code> block says which tool and with what input.</p>
+<h2>Sending the results back</h2>
+<p>A reply can contain <strong>several</strong> <code>tool_use</code> blocks. A good model asks for two files in one go when it knows it needs both, which saves a whole round. So we answer every call, and put all the results in <strong>one</strong> message:</p>
+<pre><code class="hljs language-ts"><span class="hljs-keyword">const</span> <span class="hljs-attr">results</span>: <span class="hljs-title class_">ToolResult</span>[] = [];
+<span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> call <span class="hljs-keyword">of</span> <span class="hljs-title function_">toolCallsOf</span>(reply)) {
+  <span class="hljs-keyword">const</span> content = <span class="hljs-title function_">readFile</span>(call.<span class="hljs-property">input</span>.<span class="hljs-property">path</span>);
+  results.<span class="hljs-title function_">push</span>({ <span class="hljs-attr">type</span>: <span class="hljs-string">&quot;tool_result&quot;</span>, <span class="hljs-attr">tool_use_id</span>: call.<span class="hljs-property">id</span>, content });
+}
+
+messages.<span class="hljs-title function_">push</span>({ <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;assistant&quot;</span>, <span class="hljs-attr">content</span>: reply.<span class="hljs-property">content</span> }); <span class="hljs-comment">// the model&#x27;s own turn, unchanged</span>
+messages.<span class="hljs-title function_">push</span>({ <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;user&quot;</span>, <span class="hljs-attr">content</span>: results });            <span class="hljs-comment">// every result, together</span>
+</code></pre><p>Two rules the API enforces:</p>
+<ul>
+<li><strong>Every <code>tool_use</code> gets a <code>tool_result</code></strong>, matched by <code>tool_use_id</code>. Skip one and the request is rejected.</li>
+<li><strong>They all go in the next message.</strong> Spreading them over several messages works badly: the model learns that asking for several things at once doesn&#39;t pay off, and stops doing it.</li>
+</ul>
+<p>Then we ask again, and the model answers with the files in hand.</p>
+<p>Notice the role: the tool results go in a <strong>user</strong> message. As far as the API is concerned, there are only two parties. Anything that isn&#39;t the model is &quot;the user&quot;, including your code.</p>
+<h2>Run it</h2>
+<pre><code class="hljs language-bash">npm run lesson2
+</code></pre><h2>Where one round runs out</h2>
+<pre><code class="hljs language-bash">npm run lesson2 -- --follow-up
+</code></pre><p>This time the question is <em>&quot;Which test in this project fails, and why?&quot;</em> The model reads the tests and forms a guess. But a careful answer needs the code under test too, and it only knows <em>which</em> code after reading the tests. So its second reply isn&#39;t an answer. It&#39;s another request:</p>
+<pre><code class="hljs language-text">model  My guess is &quot;shipping is free at exactly 50.00&quot;, but I need to see shipping() to be sure.
+tool → read_file({&quot;path&quot;:&quot;src/cart.js&quot;})
+</code></pre><p>Our code has done its one round and stops. No answer.</p>
+<p>You could add a second round, then a third. But you can&#39;t know in advance how many a question needs: one, two, or eight. Only the model knows when it has seen enough. Lesson 3 hands that decision to the model.</p>
+<h2>Try this</h2>
+<ul>
+<li>Make the tool description vague (&quot;Reads stuff&quot;). Run live. Does the model still pass good paths?</li>
+<li>Ask a question that needs no files, like &quot;What&#39;s 17.49 in cents?&quot;. What&#39;s the <code>stop_reason</code>?</li>
+</ul>
+<aside class="cta"><strong>Found this useful?</strong> I post small, practical AI coding examples most days.
+  <a href="https://x.com/georgehanu">Follow @georgehanu on X</a></aside><nav class="pager"><a href="01-text-in-text-out.html"><small>← Lesson 1</small>Text in, text out</a><a class="next" href="03-the-loop.html"><small>Lesson 3 →</small>Keep going until it's done</a></nav></main>
+</div>
+<footer class="foot">
+  <p>Written by <a href="https://x.com/georgehanu">George Hanu</a>. I teach developers to build software with AI: small examples, explained clearly.</p>
+  <p><a href="https://x.com/georgehanu">Follow on X</a> · <a href="https://github.com/georgehanu/the-agent-loop">Source on GitHub</a> · MIT licensed</p>
+</footer>
+</body>
+</html>

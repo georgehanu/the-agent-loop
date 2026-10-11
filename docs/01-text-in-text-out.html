@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 1: Text in, text out · The Agent Loop</title>
+<meta name="description" content="Text in, text out. Part of The Agent Loop: build a mini coding agent in TypeScript, no framework.">
+<meta property="og:title" content="Lesson 1: Text in, text out · The Agent Loop">
+<meta property="og:description" content="Text in, text out. Part of The Agent Loop: build a mini coding agent in TypeScript, no framework.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:creator" content="@georgehanu">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>↻</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><span class="loop">↻</span> The Agent Loop</a>
+  <nav class="top-links">
+    <a href="https://github.com/georgehanu/the-agent-loop">GitHub</a>
+    <a class="follow" href="https://x.com/georgehanu">Follow @georgehanu</a>
+  </nav>
+</header>
+<div class="layout">
+  <aside class="side"><div class="side-title">Lessons</div><a href="01-text-in-text-out.html" aria-current="page"><span>1</span>Text in, text out</a>
+<a href="02-first-tool-call.html"><span>2</span>Your first real tool call</a>
+<a href="03-the-loop.html"><span>3</span>Keep going until it's done</a>
+<a href="04-todo-list.html"><span>4</span>Give it a to-do list</a>
+<a href="05-guardrails.html"><span>5</span>Guardrails: the boring code that matters</a>
+<a href="06-mini-coding-agent.html"><span>6</span>A mini coding agent</a>
+<a href="07-do-you-need-an-agent.html"><span>+</span>Do you even need an agent?</a></aside>
+  <main class="lesson"><div class="meta"><span>Run</span><code>npm run lesson1</code><a href="https://github.com/georgehanu/the-agent-loop/blob/main/src/lessons/01-text-in-text-out.ts">View the code →</a></div><h1>Lesson 1 · Text in, text out</h1>
+<p>You&#39;ve watched a coding agent read your files, run your tests and fix a bug. It feels like the model is <em>doing</em> things.</p>
+<p>It isn&#39;t. A model takes text in and gives text out. That&#39;s the whole job.</p>
+<p>So where does the &quot;doing&quot; come from? From the code around the model. Let&#39;s prove it with no tools API at all.</p>
+<h2>The trick</h2>
+<p>We tell the model, in plain English:</p>
+<pre><code class="hljs language-text">You cannot see the files. If you need one, reply with exactly one line and nothing else:
+READ &lt;path&gt;
+</code></pre><p>Then we ask: <em>&quot;How much does shipping cost in this project, and when is it free?&quot;</em></p>
+<p>The model can&#39;t answer without seeing the code, so it replies:</p>
+<pre><code class="hljs language-text">READ src/cart.js
+</code></pre><p>That&#39;s just a string. Our code looks at it, and if it matches, our code reads the file:</p>
+<pre><code class="hljs language-ts"><span class="hljs-keyword">const</span> request = text.<span class="hljs-title function_">match</span>(<span class="hljs-regexp">/^READ (\S+)$/</span>);
+<span class="hljs-keyword">if</span> (request) {
+  <span class="hljs-keyword">const</span> file = <span class="hljs-title function_">readFileSync</span>(<span class="hljs-string">`playground/<span class="hljs-subst">${request[<span class="hljs-number">1</span>]}</span>`</span>, <span class="hljs-string">&quot;utf8&quot;</span>);
+  messages.<span class="hljs-title function_">push</span>({ <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;assistant&quot;</span>, <span class="hljs-attr">content</span>: text });
+  messages.<span class="hljs-title function_">push</span>({ <span class="hljs-attr">role</span>: <span class="hljs-string">&quot;user&quot;</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">`Contents of <span class="hljs-subst">${request[<span class="hljs-number">1</span>]}</span>:\n\n<span class="hljs-subst">${file}</span>`</span> });
+  reply = <span class="hljs-keyword">await</span> model.<span class="hljs-title function_">ask</span>({ system, messages });
+}
+</code></pre><p>Second request, now with the file in the conversation, and the model answers the question. A good answer also spots something odd: the code charges shipping on an order of exactly 50.00, while the README says shipping is free from 50.00. Keep that in mind. We&#39;ll fix it in lesson 6.</p>
+<h2>Run it</h2>
+<pre><code class="hljs language-bash">npm run lesson1
+</code></pre><p>No API key? It still runs. Every lesson has a <strong>replay mode</strong> that uses pre-written model replies. The loop, the file reads and the messages are all real. Add <code>ANTHROPIC_API_KEY</code> to <code>.env</code> and the same code talks to Claude.</p>
+<h2>What just happened</h2>
+<ol>
+<li>We <strong>described an ability</strong> in the prompt (&quot;you can ask for a file&quot;).</li>
+<li>The model <strong>chose to use it</strong> by writing the agreed text.</li>
+<li><strong>Our code</strong> noticed, did the work, and sent the result back.</li>
+<li>The model <strong>continued</strong> with more information than it had before.</li>
+</ol>
+<p>That&#39;s tool calling. Every agent you use, including the big ones, is a sturdier version of this pattern.</p>
+<h2>Why this matters</h2>
+<p>When an agent does something strange, this picture tells you where to look:</p>
+<ul>
+<li><strong>It used the wrong tool or the wrong input?</strong> That&#39;s the model&#39;s output. Look at the prompt and the tool description.</li>
+<li><strong>The tool did the wrong thing?</strong> That&#39;s your code. Debug it like any other function.</li>
+<li><strong>It never stopped, or stopped too early?</strong> That&#39;s the loop. You&#39;ll write it in lesson 3.</li>
+</ul>
+<h2>Why not stop here?</h2>
+<p>Parsing <code>READ (\S+)</code> works until it doesn&#39;t. What if the model writes <code>Read: src/cart.js</code>, or adds a polite sentence first, or wants two files? You&#39;d end up writing a fragile parser for every tool.</p>
+<p>Real tool calling fixes exactly this. You describe the tool with a schema, and the API gives you structured data instead of a sentence to guess at. That&#39;s lesson 2.</p>
+<h2>Try this</h2>
+<ul>
+<li>Change the question to something the README answers. Does the model still ask for a file? Which one?</li>
+<li>Add a second &quot;ability&quot; to the system prompt, like <code>LIST</code> to list files. Handle it with a second <code>if</code>. Notice how quickly this gets messy.</li>
+</ul>
+<aside class="cta"><strong>Found this useful?</strong> I post small, practical AI coding examples most days.
+  <a href="https://x.com/georgehanu">Follow @georgehanu on X</a></aside><nav class="pager"><span></span><a class="next" href="02-first-tool-call.html"><small>Lesson 2 →</small>Your first real tool call</a></nav></main>
+</div>
+<footer class="foot">
+  <p>Written by <a href="https://x.com/georgehanu">George Hanu</a>. I teach developers to build software with AI: small examples, explained clearly.</p>
+  <p><a href="https://x.com/georgehanu">Follow on X</a> · <a href="https://github.com/georgehanu/the-agent-loop">Source on GitHub</a> · MIT licensed</p>
+</footer>
+</body>
+</html>

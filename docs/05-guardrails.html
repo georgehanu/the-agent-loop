@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 5: Guardrails: the boring code that matters · The Agent Loop</title>
+<meta name="description" content="Guardrails: the boring code that matters. Part of The Agent Loop: build a mini coding agent in TypeScript, no framework.">
+<meta property="og:title" content="Lesson 5: Guardrails: the boring code that matters · The Agent Loop">
+<meta property="og:description" content="Guardrails: the boring code that matters. Part of The Agent Loop: build a mini coding agent in TypeScript, no framework.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:creator" content="@georgehanu">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>↻</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><span class="loop">↻</span> The Agent Loop</a>
+  <nav class="top-links">
+    <a href="https://github.com/georgehanu/the-agent-loop">GitHub</a>
+    <a class="follow" href="https://x.com/georgehanu">Follow @georgehanu</a>
+  </nav>
+</header>
+<div class="layout">
+  <aside class="side"><div class="side-title">Lessons</div><a href="01-text-in-text-out.html"><span>1</span>Text in, text out</a>
+<a href="02-first-tool-call.html"><span>2</span>Your first real tool call</a>
+<a href="03-the-loop.html"><span>3</span>Keep going until it's done</a>
+<a href="04-todo-list.html"><span>4</span>Give it a to-do list</a>
+<a href="05-guardrails.html" aria-current="page"><span>5</span>Guardrails: the boring code that matters</a>
+<a href="06-mini-coding-agent.html"><span>6</span>A mini coding agent</a>
+<a href="07-do-you-need-an-agent.html"><span>+</span>Do you even need an agent?</a></aside>
+  <main class="lesson"><div class="meta"><span>Run</span><code>npm run lesson5</code><a href="https://github.com/georgehanu/the-agent-loop/blob/main/src/agent.ts">View the code →</a></div><h1>Lesson 5 · Guardrails: the boring code that matters</h1>
+<p>So far the loop trusts the model completely. Whatever it asks for, we do. That&#39;s fine for reading three files in a sample project. It&#39;s not fine once tools can change things.</p>
+<p>The fix isn&#39;t a smarter model. It&#39;s ordinary code in the loop, the same checks you&#39;d write for any input from the internet. Because that&#39;s what tool input is: <strong>text produced by a model, so treat it as untrusted.</strong></p>
+<p>The guarded loop lives in <a href="https://github.com/georgehanu/the-agent-loop/blob/main/src/agent.ts"><code>src/agent.ts</code></a>. One run of lesson 5 hits every guardrail:</p>
+<pre><code class="hljs language-bash">npm run lesson5
+</code></pre><h2>1. Paths stay inside the project</h2>
+<pre><code class="hljs language-ts"><span class="hljs-keyword">function</span> <span class="hljs-title function_">insideProject</span>(<span class="hljs-params"><span class="hljs-attr">path</span>: <span class="hljs-built_in">string</span></span>): <span class="hljs-built_in">string</span> {
+  <span class="hljs-keyword">const</span> full = <span class="hljs-title function_">resolve</span>(root, path);
+  <span class="hljs-keyword">const</span> rel = <span class="hljs-title function_">relative</span>(root, full);
+  <span class="hljs-keyword">if</span> (rel.<span class="hljs-title function_">startsWith</span>(<span class="hljs-string">&quot;..&quot;</span>) || <span class="hljs-title function_">isAbsolute</span>(rel)) {
+    <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ToolError</span>(<span class="hljs-string">`&quot;<span class="hljs-subst">${path}</span>&quot; is outside the project. Use a path relative to the project root.`</span>);
+  }
+  <span class="hljs-keyword">return</span> full;
+}
+</code></pre><p>In the run, the user asks <em>&quot;what&#39;s in ../.env?&quot;</em>. The model tries. The tool says no. <strong>It doesn&#39;t matter whether the model &quot;should&quot; refuse.</strong> The code decides. A prompt asks the model to behave. Code makes sure it does.</p>
+<h2>2. Errors go back to the model</h2>
+<pre><code class="hljs language-ts"><span class="hljs-keyword">try</span> {
+  <span class="hljs-keyword">const</span> output = agentTool.<span class="hljs-title function_">run</span>(input);
+  results.<span class="hljs-title function_">push</span>({ <span class="hljs-attr">type</span>: <span class="hljs-string">&quot;tool_result&quot;</span>, <span class="hljs-attr">tool_use_id</span>: call.<span class="hljs-property">id</span>, <span class="hljs-attr">content</span>: output });
+} <span class="hljs-keyword">catch</span> (error) {
+  <span class="hljs-keyword">if</span> (!(error <span class="hljs-keyword">instanceof</span> <span class="hljs-title class_">ToolError</span>)) <span class="hljs-keyword">throw</span> error;
+  results.<span class="hljs-title function_">push</span>({ <span class="hljs-attr">type</span>: <span class="hljs-string">&quot;tool_result&quot;</span>, <span class="hljs-attr">tool_use_id</span>: call.<span class="hljs-property">id</span>, <span class="hljs-attr">content</span>: error.<span class="hljs-property">message</span>, <span class="hljs-attr">is_error</span>: <span class="hljs-literal">true</span> });
+}
+</code></pre><p>In turn 1, the model asks for <code>test/carts.test.js</code>. That file doesn&#39;t exist. Lesson 3&#39;s code would have crashed. Now the model receives:</p>
+<pre><code class="hljs language-text">No file at &quot;test/carts.test.js&quot;. Call list_files to see what exists.
+</code></pre><p>…and in turn 2, it does exactly that. <strong>Write error messages for the model the way you&#39;d write them for a junior developer:</strong> what went wrong and what to do next. &quot;ENOENT&quot; helps nobody.</p>
+<p>Note the split: a <code>ToolError</code> is the model&#39;s mistake, so it goes back to the model. Any other exception is <em>your</em> bug, so the program crashes loudly. Don&#39;t feed your own bugs to the model and hope it works around them.</p>
+<h2>3. A human approves changes</h2>
+<pre><code class="hljs language-ts"><span class="hljs-keyword">if</span> (agentTool?.<span class="hljs-property">needsApproval</span> &amp;&amp; !(<span class="hljs-keyword">await</span> <span class="hljs-title function_">approve</span>(call.<span class="hljs-property">name</span>, input))) {
+  results.<span class="hljs-title function_">push</span>(<span class="hljs-title function_">errorResult</span>(call.<span class="hljs-property">id</span>, <span class="hljs-string">&quot;The user declined this change. Ask them what they want instead.&quot;</span>));
+  <span class="hljs-keyword">continue</span>;
+}
+</code></pre><p>Before <code>edit_file</code> runs, you see the diff and get a <code>[y/N]</code>. Say no, and the model gets a result telling it so, so it can ask you what to do instead of carrying on blindly. With no terminal attached (CI, a pipe), the default answer is <strong>no</strong>.</p>
+<p>Reading is approved automatically. Changing things isn&#39;t. Where you draw that line is a product decision, not a technical one.</p>
+<h2>4. The loop has a limit</h2>
+<pre><code class="hljs language-ts"><span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> turn = <span class="hljs-number">1</span>; turn &lt;= maxTurns; turn++) { … }
+</code></pre><p>Lesson 3&#39;s <code>while</code> would happily run forever. Every turn costs money and resends the whole conversation. A turn limit is the simplest budget there is:</p>
+<pre><code class="hljs language-bash">npm run lesson5 -- --<span class="hljs-built_in">yes</span> --max-turns 2
+</code></pre><h2>5. Only finished tool calls run</h2>
+<pre><code class="hljs language-ts"><span class="hljs-keyword">if</span> (reply.<span class="hljs-property">stop_reason</span> !== <span class="hljs-string">&quot;tool_use&quot;</span>) {
+  <span class="hljs-keyword">return</span> { <span class="hljs-attr">answer</span>: <span class="hljs-title function_">textOf</span>(reply), <span class="hljs-attr">stoppedBecause</span>: … };
+}
+</code></pre><p>A reply can stop for other reasons: it hit <code>max_tokens</code> halfway through writing a tool call, or the model declined the request (<code>refusal</code>). In those cases the tool input may be cut off. So we only run tools when <code>stop_reason</code> is exactly <code>&quot;tool_use&quot;</code>, and report anything else.</p>
+<h2>6. Narrow tools beat powerful tools</h2>
+<p>There&#39;s no <code>run_command</code> tool. There&#39;s <code>run_tests</code>, which always runs the same fixed command:</p>
+<pre><code class="hljs language-ts"><span class="hljs-title function_">spawnSync</span>(process.<span class="hljs-property">execPath</span>, [<span class="hljs-string">&quot;--test&quot;</span>, <span class="hljs-string">&quot;--test-reporter=spec&quot;</span>], { <span class="hljs-attr">cwd</span>: root, <span class="hljs-attr">timeout</span>: <span class="hljs-number">30_000</span> });
+</code></pre><p>A shell tool would be more flexible. It would also accept <code>rm -rf</code>. Give the model the smallest tool that does the job. You can add more later. Taking power away from tools people rely on is much harder.</p>
+<p>And everything runs on a <strong>fresh copy</strong> of the playground in <code>.sandbox/</code>. The cheapest undo is never touching the original.</p>
+<h2>The pattern</h2>
+<p>None of this is AI code. It&#39;s input validation, error handling, permissions, timeouts and least privilege. The model is new. Everything around it is the same backend work you already know.</p>
+<h2>Try this</h2>
+<ul>
+<li>Make <code>edit_file</code> refuse to touch anything under <code>test/</code>. What does the model do when it thinks a test is wrong?</li>
+<li>Add a cost guard: stop when the total of <code>reply.usage.output_tokens</code> passes a limit.</li>
+</ul>
+<aside class="cta"><strong>Found this useful?</strong> I post small, practical AI coding examples most days.
+  <a href="https://x.com/georgehanu">Follow @georgehanu on X</a></aside><nav class="pager"><a href="04-todo-list.html"><small>← Lesson 4</small>Give it a to-do list</a><a class="next" href="06-mini-coding-agent.html"><small>Lesson 6 →</small>A mini coding agent</a></nav></main>
+</div>
+<footer class="foot">
+  <p>Written by <a href="https://x.com/georgehanu">George Hanu</a>. I teach developers to build software with AI: small examples, explained clearly.</p>
+  <p><a href="https://x.com/georgehanu">Follow on X</a> · <a href="https://github.com/georgehanu/the-agent-loop">Source on GitHub</a> · MIT licensed</p>
+</footer>
+</body>
+</html>

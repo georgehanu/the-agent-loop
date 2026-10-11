@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 4: Give it a to-do list · The Agent Loop</title>
+<meta name="description" content="Give it a to-do list. Part of The Agent Loop: build a mini coding agent in TypeScript, no framework.">
+<meta property="og:title" content="Lesson 4: Give it a to-do list · The Agent Loop">
+<meta property="og:description" content="Give it a to-do list. Part of The Agent Loop: build a mini coding agent in TypeScript, no framework.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:creator" content="@georgehanu">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>↻</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><span class="loop">↻</span> The Agent Loop</a>
+  <nav class="top-links">
+    <a href="https://github.com/georgehanu/the-agent-loop">GitHub</a>
+    <a class="follow" href="https://x.com/georgehanu">Follow @georgehanu</a>
+  </nav>
+</header>
+<div class="layout">
+  <aside class="side"><div class="side-title">Lessons</div><a href="01-text-in-text-out.html"><span>1</span>Text in, text out</a>
+<a href="02-first-tool-call.html"><span>2</span>Your first real tool call</a>
+<a href="03-the-loop.html"><span>3</span>Keep going until it's done</a>
+<a href="04-todo-list.html" aria-current="page"><span>4</span>Give it a to-do list</a>
+<a href="05-guardrails.html"><span>5</span>Guardrails: the boring code that matters</a>
+<a href="06-mini-coding-agent.html"><span>6</span>A mini coding agent</a>
+<a href="07-do-you-need-an-agent.html"><span>+</span>Do you even need an agent?</a></aside>
+  <main class="lesson"><div class="meta"><span>Run</span><code>npm run lesson4</code><a href="https://github.com/georgehanu/the-agent-loop/blob/main/src/lessons/04-todo-list.ts">View the code →</a></div><h1>Lesson 4 · Give it a to-do list</h1>
+<p>You know the moment in Claude Code or Codex when a checklist appears, and items get ticked off one by one? It looks like a big feature. It&#39;s one tool.</p>
+<h2>The tool</h2>
+<p>(Trimmed for reading. The full version, with <code>strict</code> and <code>additionalProperties</code>, is in <a href="https://github.com/georgehanu/the-agent-loop/blob/main/src/tools/todos.ts"><code>src/tools/todos.ts</code></a>.)</p>
+<pre><code class="hljs language-ts">{
+  <span class="hljs-attr">name</span>: <span class="hljs-string">&quot;update_todos&quot;</span>,
+  <span class="hljs-attr">description</span>:
+    <span class="hljs-string">&quot;Write your to-do list for the current task. Send the whole list every time. &quot;</span> +
+    <span class="hljs-string">&quot;Plan before you start, keep exactly one item in_progress, and mark items done as you finish them.&quot;</span>,
+  <span class="hljs-attr">input_schema</span>: {
+    <span class="hljs-attr">type</span>: <span class="hljs-string">&quot;object&quot;</span>,
+    <span class="hljs-attr">properties</span>: {
+      <span class="hljs-attr">todos</span>: {
+        <span class="hljs-attr">type</span>: <span class="hljs-string">&quot;array&quot;</span>,
+        <span class="hljs-attr">items</span>: {
+          <span class="hljs-attr">type</span>: <span class="hljs-string">&quot;object&quot;</span>,
+          <span class="hljs-attr">properties</span>: {
+            <span class="hljs-attr">task</span>: { <span class="hljs-attr">type</span>: <span class="hljs-string">&quot;string&quot;</span> },
+            <span class="hljs-attr">status</span>: { <span class="hljs-attr">type</span>: <span class="hljs-string">&quot;string&quot;</span>, <span class="hljs-attr">enum</span>: [<span class="hljs-string">&quot;pending&quot;</span>, <span class="hljs-string">&quot;in_progress&quot;</span>, <span class="hljs-string">&quot;done&quot;</span>] },
+          },
+          <span class="hljs-attr">required</span>: [<span class="hljs-string">&quot;task&quot;</span>, <span class="hljs-string">&quot;status&quot;</span>],
+        },
+      },
+    },
+    <span class="hljs-attr">required</span>: [<span class="hljs-string">&quot;todos&quot;</span>],
+  },
+}
+</code></pre><p>And the code behind it stores the list and prints it:</p>
+<pre><code class="hljs language-ts"><span class="hljs-attr">run</span>: <span class="hljs-function">(<span class="hljs-params">input</span>) =&gt;</span> {
+  todos = input.<span class="hljs-property">todos</span>;
+  <span class="hljs-title function_">render</span>();
+  <span class="hljs-keyword">return</span> <span class="hljs-string">`Saved. <span class="hljs-subst">${left}</span> item(s) left.`</span>;
+}
+</code></pre><p>That&#39;s all. It doesn&#39;t run anything, check anything or decide anything.</p>
+<h2>Why &quot;send the whole list every time&quot;?</h2>
+<p>You could design it as <code>add_todo</code>, <code>complete_todo(index)</code> and so on. Then you&#39;d have to handle &quot;complete item 7&quot; when there are 5 items, items added twice, and indexes that shift.</p>
+<p>With one tool that always takes the full list, the latest call <strong>is</strong> the state. Nothing to keep in sync, no index to get wrong. When a tool is used by a model, fewer ways to get it wrong usually beats fewer tokens.</p>
+<h2>Run it</h2>
+<pre><code class="hljs language-bash">npm run lesson4
+</code></pre><pre><code class="hljs language-text">── turn 1 ──────────────────────────
+model  I&#x27;ll plan this first.
+   ◐ Read the cart module
+   ○ Read its tests
+   ○ Run the test suite
+   ○ Write the review
+
+── turn 2 ──────────────────────────
+tool → read_file({&quot;path&quot;:&quot;src/cart.js&quot;})
+tool → read_file({&quot;path&quot;:&quot;test/cart.test.js&quot;})
+   ● Read the cart module
+   ● Read its tests
+   ◐ Run the test suite
+   ○ Write the review
+</code></pre><p>Same loop as lesson 3, line for line. Only the tool list changed.</p>
+<h2>Why such a small tool helps</h2>
+<p><strong>For you:</strong> you can see the plan <em>before</em> the work happens. A plan that says &quot;rewrite the cart module&quot; for a one-line bug is your cue to stop the run early. That&#39;s cheaper than reviewing a big diff later.</p>
+<p><strong>For the model:</strong> the plan sits in the conversation. Every turn, the model sees what it said it would do and what&#39;s left. On long tasks, that&#39;s often the difference between finishing and wandering off after step 3.</p>
+<p><strong>For your prompt:</strong> &quot;keep exactly one item in_progress&quot; is a small rule that gives the work a rhythm: one thing at a time, then update the list.</p>
+<p>There&#39;s no magic here. Writing a plan down helps people for the same reasons.</p>
+<h2>Where to put the instruction</h2>
+<p>Two places, on purpose:</p>
+<ul>
+<li>The <strong>tool description</strong> says <em>how</em> to use the tool (whole list, one in progress).</li>
+<li>The <strong>system prompt</strong> says <em>when</em>: &quot;Before you start, write a short plan with update_todos.&quot;</li>
+</ul>
+<p>Tool descriptions are for the tool. The system prompt is for the job.</p>
+<h2>Try this</h2>
+<ul>
+<li>Remove the &quot;write a short plan&quot; line from the system prompt and run live. Does the model still plan? How often?</li>
+<li>Add a <code>&quot;blocked&quot;</code> status for steps that need a human. Then the list can also report problems.</li>
+</ul>
+<aside class="cta"><strong>Found this useful?</strong> I post small, practical AI coding examples most days.
+  <a href="https://x.com/georgehanu">Follow @georgehanu on X</a></aside><nav class="pager"><a href="03-the-loop.html"><small>← Lesson 3</small>Keep going until it's done</a><a class="next" href="05-guardrails.html"><small>Lesson 5 →</small>Guardrails: the boring code that matters</a></nav></main>
+</div>
+<footer class="foot">
+  <p>Written by <a href="https://x.com/georgehanu">George Hanu</a>. I teach developers to build software with AI: small examples, explained clearly.</p>
+  <p><a href="https://x.com/georgehanu">Follow on X</a> · <a href="https://github.com/georgehanu/the-agent-loop">Source on GitHub</a> · MIT licensed</p>
+</footer>
+</body>
+</html>

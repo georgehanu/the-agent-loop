@@ -1,0 +1,9 @@
+{
+  "name": "tiny-shop",
+  "version": "0.1.0",
+  "description": "A tiny checkout module. The agent's practice project.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Epilogue: Do you even need an agent? · The Agent Loop</title>
+<meta name="description" content="Do you even need an agent?. Part of The Agent Loop: build a mini coding agent in TypeScript, no framework.">
+<meta property="og:title" content="Epilogue: Do you even need an agent? · The Agent Loop">
+<meta property="og:description" content="Do you even need an agent?. Part of The Agent Loop: build a mini coding agent in TypeScript, no framework.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:creator" content="@georgehanu">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>↻</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><span class="loop">↻</span> The Agent Loop</a>
+  <nav class="top-links">
+    <a href="https://github.com/georgehanu/the-agent-loop">GitHub</a>
+    <a class="follow" href="https://x.com/georgehanu">Follow @georgehanu</a>
+  </nav>
+</header>
+<div class="layout">
+  <aside class="side"><div class="side-title">Lessons</div><a href="01-text-in-text-out.html"><span>1</span>Text in, text out</a>
+<a href="02-first-tool-call.html"><span>2</span>Your first real tool call</a>
+<a href="03-the-loop.html"><span>3</span>Keep going until it's done</a>
+<a href="04-todo-list.html"><span>4</span>Give it a to-do list</a>
+<a href="05-guardrails.html"><span>5</span>Guardrails: the boring code that matters</a>
+<a href="06-mini-coding-agent.html"><span>6</span>A mini coding agent</a>
+<a href="07-do-you-need-an-agent.html" aria-current="page"><span>+</span>Do you even need an agent?</a></aside>
+  <main class="lesson"><h1>Epilogue · Do you even need an agent?</h1>
+<p>You can build an agent now. Before you do, check whether the feature needs one.</p>
+<p>An agent is the right tool when <strong>you can&#39;t write the steps down in advance.</strong> &quot;Fix whatever is making the tests fail&quot; is like that. You don&#39;t know which file, how many reads, or whether the bug is in the code or the test.</p>
+<p>Most AI features in apps aren&#39;t like that. &quot;Suggest a title for this post&quot;, &quot;summarise these 40 survey answers&quot;, &quot;turn this email into a support ticket&quot; have known steps. For those, a <strong>workflow</strong> is better: your code decides the steps, and the model does the parts that need judgment.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Workflow</th>
+<th>Agent</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Who picks the next step</td>
+<td>your code</td>
+<td>the model</td>
+</tr>
+<tr>
+<td>Number of model calls</td>
+<td>known</td>
+<td>depends on the task</td>
+</tr>
+<tr>
+<td>Cost and speed</td>
+<td>predictable</td>
+<td>varies</td>
+</tr>
+<tr>
+<td>Testing</td>
+<td>each step on its own</td>
+<td>whole runs, many times</td>
+</tr>
+<tr>
+<td>Good for</td>
+<td>features inside products</td>
+<td>open-ended tasks, tools for developers</td>
+</tr>
+</tbody></table>
+<h2>The shapes most workflows take</h2>
+<p>You don&#39;t need an agent loop for any of these:</p>
+<ul>
+<li><strong>A chain.</strong> Step 1&#39;s output is step 2&#39;s input. <em>Extract the key facts → write the summary → check it against the facts.</em></li>
+<li><strong>A router.</strong> One small call classifies the input, then your code picks the path. <em>Is this a billing, login or bug report? Each gets its own prompt and tools.</em></li>
+<li><strong>Fan-out.</strong> Same prompt over many items in parallel, then combine. <em>Summarise each of 40 feedback answers, then group the summaries.</em></li>
+<li><strong>Writer and checker.</strong> One call writes, another checks against a clear rule, and you retry if it fails. <em>Draft the reply → check it doesn&#39;t promise refunds → send or redo.</em></li>
+</ul>
+<p>Each step is a single <code>model.ask(...)</code>, the thing you wrote in lesson 1. Your code holds the control flow. You can test every step, log every step, and the bill is the same every time.</p>
+<h2>A quick checklist</h2>
+<p>Reach for the agent loop only if you answer yes to all four:</p>
+<ol>
+<li><strong>I can&#39;t list the steps in advance.</strong> They depend on what turns up along the way.</li>
+<li><strong>The result is worth the extra cost and time.</strong> An agent might take 3 turns or 30.</li>
+<li><strong>The model can actually do it.</strong> Try it by hand in a chat first.</li>
+<li><strong>Mistakes can be caught.</strong> There are tests, a review, an approval step or an undo.</li>
+</ol>
+<p>If any answer is no, start with one model call. Add steps only when you can show they make the result better. &quot;It feels like it should have a planner agent and a reviewer agent&quot; isn&#39;t evidence.</p>
+<h2>Start simple, then measure</h2>
+<p>The most useful habit in all of this: <strong>decide how you&#39;ll know it works before you build it.</strong> Ten real examples and what a good answer looks like is enough to start. Then you can try a prompt change, a second step, or a different model, and see whether it helped. Without that, you&#39;re judging by how convincing the output sounds. Models are very good at sounding convincing.</p>
+<h2>Where to go next</h2>
+<ul>
+<li>Anthropic, <a href="https://www.anthropic.com/engineering/building-effective-agents"><em>Building effective agents</em></a>. The clearest write-up of workflows vs agents.</li>
+<li>Simon Willison&#39;s writing on agents and tool use at <a href="https://simonwillison.net/">simonwillison.net</a>.</li>
+<li>The Claude docs on <a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview">tool use</a>, for the details these lessons skipped: streaming, parallel calls, the SDK&#39;s built-in tool runner.</li>
+</ul>
+<p>That&#39;s the lot. Six lessons, one loop. If this helped, tell me what you built on X: <a href="https://x.com/georgehanu">@georgehanu</a>.</p>
+<aside class="cta"><strong>Found this useful?</strong> I post small, practical AI coding examples most days.
+  <a href="https://x.com/georgehanu">Follow @georgehanu on X</a></aside><nav class="pager"><a href="06-mini-coding-agent.html"><small>← Lesson 6</small>A mini coding agent</a></nav></main>
+</div>
+<footer class="foot">
+  <p>Written by <a href="https://x.com/georgehanu">George Hanu</a>. I teach developers to build software with AI: small examples, explained clearly.</p>
+  <p><a href="https://x.com/georgehanu">Follow on X</a> · <a href="https://github.com/georgehanu/the-agent-loop">Source on GitHub</a> · MIT licensed</p>
+</footer>
+</body>
+</html>
